@@ -141,6 +141,7 @@ public class TrackerImpl implements Tracker, Serializable {
 	}
 	
 	public Set<LoadBinding> getLoadBindings(Object base, String prop) {
+		System.out.println(">>>>[" +DT()+"]getLoadBindings base:"+base+", prop:"+prop);
 		final Set<LoadBinding> bindings = new HashSet<LoadBinding>();
 		final Set<TrackerNode> visited = new HashSet<TrackerNode>();
 		collectLoadBindings(base, prop, bindings, visited);
@@ -181,8 +182,17 @@ public class TrackerImpl implements Tracker, Serializable {
 			collectLoadBindings(kidbase, "*", bindings, visited); //recursive, for kid base
 		}
 	}
-	
+	private static String DT(){ 
+		return new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
+	}
 	public void tieValue(Object comp, Object base, Object script, Object propName, Object value) {
+		System.out.println(">>>["+DT()+"]tieValue addXXXMap: " +
+				"\n\tcomp:"+comp+
+				"\n\tbase:"+base+
+				"\n\tscript:"+script+
+				"\n\tpropName:"+propName+
+				"\n\tvalue:"+value);
+		
 		if (base == null) { //track from component
 			//locate head TrackerNodes of this component
 			final Map<Object, TrackerNode> bindingNodes = _compMap.get(comp);
@@ -231,6 +241,7 @@ public class TrackerImpl implements Tracker, Serializable {
 	private void addBeanMap(TrackerNode node, Object value) {
 		//add node into _beanMap
 		if (!value.equals(node.getBean())) {
+			System.out.println("\t$ADD BeanMap: bean: "+value);
 			//try to remove from the _beanMap
 			removeBeanMap(node);
 			
@@ -293,6 +304,7 @@ public class TrackerImpl implements Tracker, Serializable {
 	private void removeBeanMap(TrackerNode node) {
 		final Object value = node.getBean();
 		if (value != null) {
+			System.out.println("\t$REMOVE BeanMap: bean: "+value);
 			node.setBean(null);
 			final Set<TrackerNode> nodes = _beanMap.get(value);
 			if (nodes != null) {
@@ -408,6 +420,9 @@ public class TrackerImpl implements Tracker, Serializable {
 			Set<TrackerNode> beanNodes = _beanMap.get(obj);
 			if(beanNodes!=null){//zk-1185, _beanMap could contains no such entry, and returned null.
 				nodes.addAll(beanNodes);
+			}else{
+				System.out.println(">>>>> beanMap.get(obj) is null, EqualBeans' key: "+bean);
+				System.out.println(">>>>> EqualBeans: "+beans+", eqBean: "+obj);
 			}
 		}
 		results.addAll(nodes);
@@ -438,7 +453,11 @@ public class TrackerImpl implements Tracker, Serializable {
 		_beanMap = new WeakIdentityMap<Object, Set<TrackerNode>>(); //bean -> Set of TrackerNode
 		_equalBeansMap = new EqualBeansMap(); //bean -> beans (use to manage equal beans)
 	}
-	
+	/**
+	 * 
+	 * @author henrichen
+	 *
+	 */
 	private static class EqualBeansMap {
 		private transient WeakHashMap<Object, EqualBeans> _innerMap = new WeakHashMap<Object, EqualBeans>(); //bean -> EqualBeans
 		private transient WeakIdentityMap<Object, EqualBeans> _identityMap = new WeakIdentityMap<Object, EqualBeans>(); //bean -> EqualBeans
@@ -540,8 +559,18 @@ public class TrackerImpl implements Tracker, Serializable {
 		private Set<Entry<Object, EqualBeans>> entrySet() {
 			return _innerMap.entrySet();
 		}
+		public int idSize() {
+			return _identityMap.size();
+		}
+		private Set<Entry<Object, EqualBeans>> identitySet() {
+			return _identityMap.entrySet();
+		}
 	}
-	
+	/**
+	 * 
+	 * @author henrichen
+	 *
+	 */
 	private static class EqualBeans {
 		private transient WeakReference<Object> _proxy; //surrogate object as the key for the _beanSet
 		private transient WeakIdentityMap<Object, Boolean> _beanSet; //different instance of beans equal to each other
@@ -600,8 +629,10 @@ public class TrackerImpl implements Tracker, Serializable {
 		for(Object bean : _beanMap.keySet()) {
 			System.out.println("bean:"+bean+"------------");
 			Set<TrackerNode> nodes = _beanMap.get(bean);
-			for(TrackerNode node : nodes) {
-				dumpNodeTree(node, 4);
+			if(nodes!=null){
+				for(TrackerNode node : nodes) {
+					dumpNodeTree(node, 4);
+				}	
 			}
 		}
 	}
@@ -633,11 +664,23 @@ public class TrackerImpl implements Tracker, Serializable {
 
 	private void dumpEqualBeansMap() {
 		System.out.println("******* _equalBeansMap: *********");
-		System.out.println("******* size: "+_equalBeansMap.size());
 		
+		System.out.println("******* innerMap: size: "+_equalBeansMap.size());
 		for(Entry<Object, EqualBeans> entry: _equalBeansMap.entrySet()) {
-			System.out.println("proxy:"+entry.getKey());
+			Object key = entry.getKey();
+			System.out.println("proxy:"+key+
+				(key==null? "" : System.identityHashCode(entry.getKey())));
 			System.out.println("val:"+entry.getValue().getBeans());
+			System.out.println("----");
+		}
+		System.out.println("******* identityMap: size: "+_equalBeansMap.idSize());
+		for(Entry<Object, EqualBeans> entry: _equalBeansMap.identitySet()) {
+			Object key = entry.getKey();
+			System.out.println("ID-Obj:"+key+
+				(key==null? "" : System.identityHashCode(entry.getKey())));
+			EqualBeans value = entry.getValue();
+			System.out.println("val:"+(value==null?
+					null:value.getBeans()));
 			System.out.println("----");
 		}
 	}

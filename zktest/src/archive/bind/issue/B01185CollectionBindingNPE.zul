@@ -65,4 +65,6 @@
 			</listfoot>
 		</listbox>
 	</groupbox>
+	
+	<button label="Dump Binder Tracker" onClick="@command('dumpTracker')"/>
 </window>

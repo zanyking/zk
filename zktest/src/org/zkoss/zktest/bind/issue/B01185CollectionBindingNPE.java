@@ -20,10 +20,15 @@ package org.zkoss.zktest.bind.issue;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.zkoss.bind.Binder;
 import org.zkoss.bind.annotation.BindingParam;
 import org.zkoss.bind.annotation.Command;
+import org.zkoss.bind.annotation.ContextParam;
+import org.zkoss.bind.annotation.ContextType;
 import org.zkoss.bind.annotation.Init;
 import org.zkoss.bind.annotation.NotifyChange;
+import org.zkoss.bind.sys.BinderCtrl;
+import org.zkoss.bind.tracker.impl.TrackerImpl;
 import org.zkoss.zk.ui.Component;
 /**
  * @author Ian Y.T Tsai(zanyking)
@@ -41,12 +46,7 @@ public class B01185CollectionBindingNPE {
 	
 	@Command @NotifyChange("URL")
 	public void addMore(){
-    	if(URL != null && URL.size()>0){
-    		URL.add(new URL());
-    	}else{
-    		URL = new ArrayList<URL>();
-    		URL.add(new URL());
-    	}	
+		URL.add(new URL());
 	}
 	
     @Command @NotifyChange("URL")
@@ -56,17 +56,17 @@ public class B01185CollectionBindingNPE {
     
 	@Command @NotifyChange("person")
 	public void addMorePerson(){
-    	if(person != null && person.size()>0){
-    		person.add(new Person());
-    	}else{
-    		person = new ArrayList<Person>();
-    		person.add(new Person());
-    	}	
+		person.add(new Person());
 	}
 	
     @Command @NotifyChange("person")
     public void removePerson(@BindingParam("index") int index){
     	person.remove(index);
+    }
+    
+    @Command
+    public void dumpTracker(@ContextParam(ContextType.BINDER) Binder binder){
+    	((TrackerImpl)((BinderCtrl)binder).getTracker()).dump();
     }
 	
 	public List<URL> getURL() {
