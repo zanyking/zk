@@ -50,7 +50,9 @@ public class TrackerImpl implements Tracker, Serializable {
 	private Map<Component, Map<Object, TrackerNode>> _compMap = new LinkedHashMap<Component, Map<Object, TrackerNode>>(); //comp -> path -> head TrackerNode
 	private Map<Object, Set<TrackerNode>> _nullMap = new HashMap<Object, Set<TrackerNode>>(); //property -> Set of head TrackerNode that eval to null
 	private transient Map<Object, Set<TrackerNode>> _beanMap = new WeakIdentityMap<Object, Set<TrackerNode>>(); //bean -> Set of TrackerNode
-	private transient EqualBeansMap _equalBeansMap = new EqualBeansMap(); //bean -> beans (use to manage equal beans)
+	
+//	private transient BeanStore _beanStore = new EqualBeansMap();
+	private transient BeanStore _beanStore = new NaiveBeanStoreImpl();//need an absolute correct implementation to test EqualBeansMap implementation.
 	
 	public void addTracking(Component comp, String[] series, Binding binding) {
 		//Track only LoadBinding
@@ -238,24 +240,24 @@ public class TrackerImpl implements Tracker, Serializable {
 	}
 	
 	//add node into the _beanMap
-	private void addBeanMap(TrackerNode node, Object value) {
+	private void addBeanMap(TrackerNode node, Object bean) {
 		//add node into _beanMap
-		if (!value.equals(node.getBean())) {
-			System.out.println("\t$ADD BeanMap: bean: "+value);
+		if (!bean.equals(node.getBean())) {
+			System.out.println("\t$ADD BeanMap: bean: "+bean);
 			//try to remove from the _beanMap
 			removeBeanMap(node);
 			
 			//add into _beanMap
-			if (!BindELContext.isImmutable(value)) {
-				Set<TrackerNode> nodes = _beanMap.get(value);
+			if (!BindELContext.isImmutable(bean)) {
+				Set<TrackerNode> nodes = _beanMap.get(bean);
 				if (nodes == null) {
 					nodes = new HashSet<TrackerNode>();
-					_beanMap.put(value, nodes);
-					_equalBeansMap.put(value);
+					_beanMap.put(bean, nodes);
+					_beanStore.add(bean);
 				}
 				nodes.add(node);
 				//only when value is not a primitive that we shall store it
-				node.setBean(value);
+				node.setBean(bean);
 			}
 		}
 		
@@ -310,7 +312,7 @@ public class TrackerImpl implements Tracker, Serializable {
 			if (nodes != null) {
 				nodes.remove(node); //remove this node from the _beanMap
 				if (nodes.isEmpty()) {
-					_equalBeansMap.remove(value); //sync the equalBeanMap 
+					_beanStore.remove(value);
 					_beanMap.remove(value);
 				}
 			}
@@ -392,7 +394,7 @@ public class TrackerImpl implements Tracker, Serializable {
 			nodeset.getValue().removeAll(removed);
 			if (nodeset.getValue().isEmpty()) {
 				it.remove();
-				_equalBeansMap.remove(bean);
+				_beanStore.remove(bean);
 			}
 		}
 	}
@@ -414,7 +416,7 @@ public class TrackerImpl implements Tracker, Serializable {
 	}
 	
 	private void getAllTrackerNodesByBean0(Object bean, Set<TrackerNode> results) {
-		final Set<Object> beans = _equalBeansMap.getEqualBeans(bean); //return a set of equal beans
+		final Set<Object> beans = _beanStore.getEqualBeans(bean); //return a set of equal beans
 		final Set<TrackerNode> nodes = new LinkedHashSet<TrackerNode>();
 		for (Object obj : beans) {
 			Set<TrackerNode> beanNodes = _beanMap.get(obj);
@@ -443,7 +445,7 @@ public class TrackerImpl implements Tracker, Serializable {
 	
 	//Returns equal beans with the given bean in an IdentityHashSet() 
 	public Set<Object> getEqualBeans(Object bean) {
-		return _equalBeansMap.getEqualBeans(bean); //return a set of equal beans
+		return _beanStore.getEqualBeans(bean); //return a set of equal beans
 	}
 	
 	private void readObject(java.io.ObjectInputStream s)
@@ -451,16 +453,81 @@ public class TrackerImpl implements Tracker, Serializable {
 		s.defaultReadObject();
 		
 		_beanMap = new WeakIdentityMap<Object, Set<TrackerNode>>(); //bean -> Set of TrackerNode
-		_equalBeansMap = new EqualBeansMap(); //bean -> beans (use to manage equal beans)
+		_beanStore = new EqualBeansMap(); //bean -> beans (use to manage equal beans)
+	}
+
+	/**
+	 * A Storage used to maintain the "equals" relationship between beans.<br>
+	 * Here are some Lemmas:
+	 * <ol>
+	 * <li>If a bean was added and hasn't been removed, then at least the returned result should contain _beanMap.get(bean).</li>
+	 * <li>if Y is in getEqualBeans(X), then X is in getEqualBeans(Y)</li>
+	 * <li>For all B in store, K = getEqualBeans(B), then for all S in K satisfy: getEqualBeans(S) == K.</li>
+	 * </ol>
+	 * 
+	 * @author Ian Y.T Tsai(zanyking)
+	 * 
+	 */
+	private interface BeanStore{
+		/**
+		 * Add a new bean into this store, and synchronize "equals" connections between all the other beans. 
+		 * @param bean
+		 */
+		void add(Object bean);
+		/**
+		 * remove bean and it's "equals" connections between other beans form store.
+		 * @param bean
+		 */
+		void remove(Object bean);
+		/**
+		 * get all related beans which have "equals" connection to the given bean.<br>
+		 * @param bean
+		 * @return
+		 */
+		Set<Object> getEqualBeans(Object bean);
+		/**
+		 * 
+		 * @return the current size of store. 
+		 */
+		int size();
+	}
+	
+	
+	private class NaiveBeanStoreImpl implements BeanStore{
+		@Override
+		public void add(Object bean) {
+			//no operation...
+		}
+		@Override
+		public void remove(Object bean) {
+			//no operation...
+		}
+		@Override
+		public Set<Object> getEqualBeans(Object bean) {
+			HashSet<Object> result = new HashSet<Object>();
+			Object key = null;
+			for(Entry<Object, Set<TrackerNode>> entry : _beanMap.entrySet()){
+				if(bean.equals(key = entry.getKey())){
+					result.add(key);
+				}
+			}
+			return result;
+		}
+		@Override
+		public int size() {
+			return _beanMap.size();
+		}
 	}
 	/**
-	 * 
 	 * @author henrichen
-	 *
 	 */
-	private static class EqualBeansMap {
-		private transient WeakHashMap<Object, EqualBeans> _innerMap = new WeakHashMap<Object, EqualBeans>(); //bean -> EqualBeans
-		private transient WeakIdentityMap<Object, EqualBeans> _identityMap = new WeakIdentityMap<Object, EqualBeans>(); //bean -> EqualBeans
+	private static class EqualBeansMap implements BeanStore{
+		
+		private transient WeakHashMap<Object, EqualBeans> _innerMap = 
+			new WeakHashMap<Object, EqualBeans>(); //bean -> EqualBeans
+		
+		private transient WeakIdentityMap<Object, EqualBeans> _identityMap = 
+			new WeakIdentityMap<Object, EqualBeans>(); //bean -> EqualBeans
 		
 		//bug #ZK-678: NotifyChange on Map is not work
 		private void syncInnerMap(EqualBeans equalBeans, Object bean) {
@@ -482,12 +549,14 @@ public class TrackerImpl implements Tracker, Serializable {
 				//reput equalBeans (item inside might not equal to each other any more)
 				for (Object b : equalBeans.getBeans()) {
 					_identityMap.remove(b);
-					put(b); //recursive
+					add(b); //recursive
 				}
 			}
 		}
-		
-		public void put(Object bean) {
+		/*
+		 * 
+		 */
+		public void add(Object bean) {
 			EqualBeans equalBeans = _innerMap.get(bean);
 			if (equalBeans == null) { //hashcode might changed
 				equalBeans = _identityMap.remove(bean);
@@ -503,7 +572,9 @@ public class TrackerImpl implements Tracker, Serializable {
 			}
 			_identityMap.put(bean, equalBeans);
 		}
-		
+		/*
+		 * 
+		 */
 		public void remove(Object bean) {
 			EqualBeans equalBeans = _innerMap.remove(bean);
 			if (equalBeans != null) {
@@ -539,7 +610,9 @@ public class TrackerImpl implements Tracker, Serializable {
 				_innerMap.put(proxy, equalBeans); //reput into _innerMap with new Proxy
 			}
 		}
-		
+		/*
+		 * 
+		 */
 		public Set<Object> getEqualBeans(Object bean) {
 			EqualBeans equalBeans = _innerMap.get(bean);
 			if (equalBeans == null) { //hashcode might changed
@@ -566,11 +639,7 @@ public class TrackerImpl implements Tracker, Serializable {
 			return _identityMap.entrySet();
 		}
 	}
-	/**
-	 * 
-	 * @author henrichen
-	 *
-	 */
+	
 	private static class EqualBeans {
 		private transient WeakReference<Object> _proxy; //surrogate object as the key for the _beanSet
 		private transient WeakIdentityMap<Object, Boolean> _beanSet; //different instance of beans equal to each other
@@ -613,14 +682,14 @@ public class TrackerImpl implements Tracker, Serializable {
 		public boolean isEmpty() {
 			return _beanSet == null || _beanSet.isEmpty();
 		}
-	}
-	
+	}// end of class...
 	//------ debug dump ------//
 	public void dump() {
 		dumpCompMap();
 		dumpBeanMap();
 		dumpNullMap();
-		dumpEqualBeansMap();
+		if(_beanStore instanceof EqualBeansMap)
+			dumpEqualBeansMap((EqualBeansMap) _beanStore);
 	}
 	
 	private void dumpBeanMap() {
@@ -662,19 +731,19 @@ public class TrackerImpl implements Tracker, Serializable {
 		}
 	}
 
-	private void dumpEqualBeansMap() {
+	private void dumpEqualBeansMap(EqualBeansMap eqBeanMap) {
 		System.out.println("******* _equalBeansMap: *********");
 		
-		System.out.println("******* innerMap: size: "+_equalBeansMap.size());
-		for(Entry<Object, EqualBeans> entry: _equalBeansMap.entrySet()) {
+		System.out.println("******* innerMap: size: "+eqBeanMap.size());
+		for(Entry<Object, EqualBeans> entry: eqBeanMap.entrySet()) {
 			Object key = entry.getKey();
 			System.out.println("proxy:"+key+
 				(key==null? "" : System.identityHashCode(entry.getKey())));
 			System.out.println("val:"+entry.getValue().getBeans());
 			System.out.println("----");
 		}
-		System.out.println("******* identityMap: size: "+_equalBeansMap.idSize());
-		for(Entry<Object, EqualBeans> entry: _equalBeansMap.identitySet()) {
+		System.out.println("******* identityMap: size: "+eqBeanMap.idSize());
+		for(Entry<Object, EqualBeans> entry: eqBeanMap.identitySet()) {
 			Object key = entry.getKey();
 			System.out.println("ID-Obj:"+key+
 				(key==null? "" : System.identityHashCode(entry.getKey())));
