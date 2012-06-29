@@ -742,10 +742,12 @@ public class TrackerImpl implements Tracker, Serializable {
 		for(Object bean : _beanMap.keySet()) {
 			System.out.println("bean:"+bean+"------------");
 			Set<TrackerNode> nodes = _beanMap.get(bean);
-			if(nodes!=null){
+			if(_beanMap!=null){
 				for(TrackerNode node : nodes) {
 					dumpNodeTree(node, 4);
 				}	
+			}else{
+				System.out.println("NO TrackerNode bound to this bean.");
 			}
 		}
 	}
