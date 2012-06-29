@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -39,6 +40,7 @@ import org.zkoss.bind.sys.tracker.TrackerNode;
 import org.zkoss.bind.xel.zel.BindELContext;
 import org.zkoss.util.IdentityHashSet;
 import org.zkoss.zk.ui.Component;
+import org.zkoss.zul.ListModel;
 
 /**
  * Implementation of dependency tracking.
@@ -52,7 +54,7 @@ public class TrackerImpl implements Tracker, Serializable {
 	private transient Map<Object, Set<TrackerNode>> _beanMap = new WeakIdentityMap<Object, Set<TrackerNode>>(); //bean -> Set of TrackerNode
 	
 //	private transient BeanStore _beanStore = new EqualBeansMap();
-	private transient BeanStore _beanStore = new NaiveBeanStoreImpl();//need an absolute correct implementation to test EqualBeansMap implementation.
+	private transient EqualBeanStore _beanStore = new MultiBeanStoreImpl();//need an absolute correct implementation to test EqualBeansMap implementation.
 	
 	public void addTracking(Component comp, String[] series, Binding binding) {
 		//Track only LoadBinding
@@ -143,7 +145,6 @@ public class TrackerImpl implements Tracker, Serializable {
 	}
 	
 	public Set<LoadBinding> getLoadBindings(Object base, String prop) {
-		System.out.println(">>>>[" +DT()+"]getLoadBindings base:"+base+", prop:"+prop);
 		final Set<LoadBinding> bindings = new HashSet<LoadBinding>();
 		final Set<TrackerNode> visited = new HashSet<TrackerNode>();
 		collectLoadBindings(base, prop, bindings, visited);
@@ -184,17 +185,7 @@ public class TrackerImpl implements Tracker, Serializable {
 			collectLoadBindings(kidbase, "*", bindings, visited); //recursive, for kid base
 		}
 	}
-	private static String DT(){ 
-		return new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
-	}
 	public void tieValue(Object comp, Object base, Object script, Object propName, Object value) {
-		System.out.println(">>>["+DT()+"]tieValue addXXXMap: " +
-				"\n\tcomp:"+comp+
-				"\n\tbase:"+base+
-				"\n\tscript:"+script+
-				"\n\tpropName:"+propName+
-				"\n\tvalue:"+value);
-		
 		if (base == null) { //track from component
 			//locate head TrackerNodes of this component
 			final Map<Object, TrackerNode> bindingNodes = _compMap.get(comp);
@@ -243,7 +234,6 @@ public class TrackerImpl implements Tracker, Serializable {
 	private void addBeanMap(TrackerNode node, Object bean) {
 		//add node into _beanMap
 		if (!bean.equals(node.getBean())) {
-			System.out.println("\t$ADD BeanMap: bean: "+bean);
 			//try to remove from the _beanMap
 			removeBeanMap(node);
 			
@@ -306,7 +296,6 @@ public class TrackerImpl implements Tracker, Serializable {
 	private void removeBeanMap(TrackerNode node) {
 		final Object value = node.getBean();
 		if (value != null) {
-			System.out.println("\t$REMOVE BeanMap: bean: "+value);
 			node.setBean(null);
 			final Set<TrackerNode> nodes = _beanMap.get(value);
 			if (nodes != null) {
@@ -416,7 +405,7 @@ public class TrackerImpl implements Tracker, Serializable {
 	}
 	
 	private void getAllTrackerNodesByBean0(Object bean, Set<TrackerNode> results) {
-		final Set<Object> beans = _beanStore.getEqualBeans(bean); //return a set of equal beans
+		final Set<Object> beans = _beanStore.query(bean); //return a set of equal beans
 		final Set<TrackerNode> nodes = new LinkedHashSet<TrackerNode>();
 		for (Object obj : beans) {
 			Set<TrackerNode> beanNodes = _beanMap.get(obj);
@@ -445,7 +434,7 @@ public class TrackerImpl implements Tracker, Serializable {
 	
 	//Returns equal beans with the given bean in an IdentityHashSet() 
 	public Set<Object> getEqualBeans(Object bean) {
-		return _beanStore.getEqualBeans(bean); //return a set of equal beans
+		return _beanStore.query(bean); //return a set of equal beans
 	}
 	
 	private void readObject(java.io.ObjectInputStream s)
@@ -468,7 +457,7 @@ public class TrackerImpl implements Tracker, Serializable {
 	 * @author Ian Y.T Tsai(zanyking)
 	 * 
 	 */
-	private interface BeanStore{
+	private interface EqualBeanStore{
 		/**
 		 * Add a new bean into this store, and synchronize "equals" connections between all the other beans. 
 		 * @param bean
@@ -484,7 +473,7 @@ public class TrackerImpl implements Tracker, Serializable {
 		 * @param bean
 		 * @return
 		 */
-		Set<Object> getEqualBeans(Object bean);
+		Set<Object> query(Object bean);
 		/**
 		 * 
 		 * @return the current size of store. 
@@ -493,35 +482,90 @@ public class TrackerImpl implements Tracker, Serializable {
 	}
 	
 	
-	private class NaiveBeanStoreImpl implements BeanStore{
-		@Override
+	/**
+	 * Separate beans by type, reduce liner search overhead.
+	 * @author Ian Y.T Tsai(zanyking)
+	 *
+	 */
+	private static class MultiBeanStoreImpl implements EqualBeanStore{
+		// use linkedHashMap because store lookup sequence need to be guaranteed. 
+		private Map<Class<?>, NaiveBeanStoreImpl> stores;
+		private EqualBeanStore baseStore;
+		
+		MultiBeanStoreImpl(){
+			stores = new LinkedHashMap<Class<?>, NaiveBeanStoreImpl>();
+			baseStore = new NaiveBeanStoreImpl();
+			// can change impl of each type...
+			stores.put(Map.class, new NaiveBeanStoreImpl());
+			stores.put(Set.class, new NaiveBeanStoreImpl());
+			stores.put(List.class, new NaiveBeanStoreImpl());
+			stores.put(Collection.class, new NaiveBeanStoreImpl());
+			stores.put(ListModel.class, new NaiveBeanStoreImpl());
+			//add more...
+		}
+		private EqualBeanStore getStore(Object bean){
+			for(Class<?> clz : stores.keySet()){
+				if(clz.isInstance(bean)){
+					return stores.get(clz);
+				}
+			}
+			return baseStore;
+		}
+
 		public void add(Object bean) {
-			//no operation...
+			getStore(bean).add(bean);
 		}
-		@Override
+
 		public void remove(Object bean) {
-			//no operation...
+			getStore(bean).remove(bean);
 		}
-		@Override
-		public Set<Object> getEqualBeans(Object bean) {
+
+		public Set<Object> query(Object bean) {
+			return getStore(bean).query(bean);
+		}
+
+		public int size() {
+			int ans = 0;
+			for(EqualBeanStore store : stores.values()){
+				ans += store.size();
+			}
+			return ans;
+		}
+		
+	}
+	
+	/**
+	 * The most naive but absolute correct implementation of BeanStore.
+	 * @author Ian Y.T Tsai(zanyking)
+	 *
+	 */
+	private static class NaiveBeanStoreImpl implements EqualBeanStore{
+		private Map<Object, Object> beanSet = //though this is a map, we use it like a set. 
+			new WeakIdentityMap<Object, Object>();
+		public void add(Object bean) {
+			beanSet.put(bean, this);
+		}
+		public void remove(Object bean) {
+			beanSet.remove(bean);
+		}
+		public Set<Object> query(Object bean) {
+			//any possible cache mechanism that suite our cases? 
 			HashSet<Object> result = new HashSet<Object>();
-			Object key = null;
-			for(Entry<Object, Set<TrackerNode>> entry : _beanMap.entrySet()){
-				if(bean.equals(key = entry.getKey())){
+			for(Object key : beanSet.keySet()){
+				if(bean.equals(key)){//equals is an operation that might be very expansive.
 					result.add(key);
 				}
 			}
 			return result;
 		}
-		@Override
 		public int size() {
-			return _beanMap.size();
+			return beanSet.size();
 		}
 	}
 	/**
 	 * @author henrichen
 	 */
-	private static class EqualBeansMap implements BeanStore{
+	private static class EqualBeansMap implements EqualBeanStore{
 		
 		private transient WeakHashMap<Object, EqualBeans> _innerMap = 
 			new WeakHashMap<Object, EqualBeans>(); //bean -> EqualBeans
@@ -613,7 +657,7 @@ public class TrackerImpl implements Tracker, Serializable {
 		/*
 		 * 
 		 */
-		public Set<Object> getEqualBeans(Object bean) {
+		public Set<Object> query(Object bean) {
 			EqualBeans equalBeans = _innerMap.get(bean);
 			if (equalBeans == null) { //hashcode might changed
 				equalBeans = _identityMap.remove(bean);
