@@ -23,8 +23,11 @@ ZK 6.5.0
   ZK-1277: Group and listgroup components should be set as the same height as row and listitem components
   ZK-1273: Add a way to listen onOrientationChange for tablet device
   ZK-1283: Grid/List/Tree support changing page by swipe event on tablet device
+  ZK-1272: Scrollview component for tablet device
+  ZK-1269: Need layout that allow user change view like change card
 
 * Bugs
+  ZK-1285: Modal window position issue with virtual keyboard on ipad
 
 * Upgrade Notes
   + Rename the "tbbtn" mold of chosenbox to "toolbar"
@@ -46,6 +49,19 @@ ZK 6.5.0
     *. Splitter's os mold
     *. Tabbox's accordion-lite mold
 	When using the molds above, the component will use default supported mold instead.
+  + Unsupported attribute for Tablet devices:
+    *. Combobox's autodrop attribute
+    *. Menubar's autodrop attribute
+
+  --------
+ZK 6.0.3
+* Features
+
+* Bugs
+  ZK-1128: Use SerializableUiFactory with a portal environment will cause ClassCastException
+  ZK-1303: listbox select mold with 1 rows onSelect event not fired for first item
+
+* Upgrade Notes
 
   --------
 ZK 6.0.2

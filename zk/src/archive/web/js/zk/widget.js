@@ -2791,6 +2791,7 @@ bind_: function (desktop, skipper, after) {
 					self.fire('onBind');
 			});
 		}
+		this.bindSwipe_();
 	},
 	/** Binds the children of this widget.
 	 * It is called by {@link #bind_} to invoke child's {@link #bind_} one-by-one.
@@ -2842,6 +2843,7 @@ unbind_: function (skipper, after) {
 
 		this.unbindChildren_(skipper, after);
 		this.cleanDrag_(); //ok to invoke even if not init
+		this.unbindSwipe_();
 
 		if (this.isListen('onUnbind')) {
 			var self = this;
@@ -3159,6 +3161,31 @@ unbind_: function (skipper, after) {
 
 		jq(this.getDragNode()).removeClass('z-dragged');
 	},
+	/** Bind swipe event to the widget on tablet device.
+	 * It is called if HTML 5 data attribute (data-swipeable) is set to true.
+	 * <p>You rarely need to override this method, unless you want to bind swipe behavior differently.
+	 * <p>Default: use {@link zk.Swipe} to implement swipe event.
+	 * @see #doSwipe_
+	 * @since 6.5.0
+	 */
+	bindSwipe_: zk.mobile ? function () {
+		var node = this.$n();
+		if (this.isListen('onSwipe') || jq(node).data('swipeable'))
+			this._swipe = new zk.Swipe(this, node);
+	} : zk.$void,
+	/** Unbind swipe event to the widget on tablet device.
+	 * It is called if swipe event is unbound.
+	 * <p>You rarely need to override this method, unless you want to unbind swipe event differently.
+	 * @see #doSwipe_
+	 * @since 6.5.0
+	 */
+	unbindSwipe_: zk.mobile ? function () {
+		var swipe = this._swipe;
+		if (swipe) {
+			this._swipe = null;
+			swipe.destroy(this.$n());
+		}
+	} : zk.$void,
 
 	/** Sets the focus to this widget.
 	 * This method will check if this widget can be activated by invoking {@link #canActivate} first.

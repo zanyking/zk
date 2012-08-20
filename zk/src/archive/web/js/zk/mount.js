@@ -230,7 +230,16 @@ function zkamn(pkg, fn) {
 		zk.mounting = false;
 		doAfterMount(mtBL1);
 		_paci && ++_paci.s;
-		zk.endProcessing();
+		if (zk.mobile) {
+			setTimeout(function () {
+			// close it when no ClientInfo event registered,
+			// otherwise the onResponse event will take care that.
+			if (!zAu._cInfoReg)
+				zk.endProcessing();
+			}, 500);
+		} else {
+			zk.endProcessing();
+		}
 
 		zk.bmk.onURLChange();
 		if (zk.pfmeter) {
@@ -718,15 +727,11 @@ jq(function() {
 		var delay = zk.ie ? 250: 50;
 		_reszInf.time = now + delay - 1; //handle it later
 		setTimeout(_docResize, delay);
-		
-		if (zk.mobile) {
-			var orientation = Math.abs(window.orientation), orient;
-			if (orientation == 90)
-				orient = zk.android ? 'portrait' : 'landscape';
-			else
-				orient = zk.android ? 'landscape' : 'portrait';
-			
-			zAu.send(new zk.Event(null, 'onOrientationChange', {orient: orient}), delay);
+
+		if (zk.mobile && zAu._cInfoReg) {
+			if (!jq("#zk_proc").length && !jq("#zk_showBusy").length) {
+				zUtl.progressbox("zk_proc", window.msgzk?msgzk.PLEASE_WAIT:'Processing...', true);
+			}
 		}
 	};
 	
