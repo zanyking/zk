@@ -1,0 +1,30 @@
+<!-- B01299RefSaveAfterNPE.zul -->
+
+<zk>
+	<window apply="org.zkoss.bind.BindComposer"
+		viewModel="@id('vm') @init('org.zkoss.zktest.bind.issue.B01299RefSaveAfterNPE')">
+		type on the textbox, then click update, the label should be updated 
+		<vlayout> 
+			<textbox value="@save(vm.text, after='periodSelected')"/>
+			<label value="@load(vm.text)"/>
+			<button label="update" onClick="@command('periodSelected')" />
+		</vlayout>
+	</window>
+	<window apply="org.zkoss.bind.BindComposer"
+		viewModel="@id('vm') @init('org.zkoss.zktest.bind.issue.B01299RefSaveAfterNPE')">
+		type on the textbox, and tab, the label should be updated
+		<vlayout text="@ref(vm.text)">
+		<textbox value="@save(text)"/>
+		<label value="@load(text)"/>
+		</vlayout>
+	</window>	
+	<window apply="org.zkoss.bind.BindComposer"
+		viewModel="@id('vm') @init('org.zkoss.zktest.bind.issue.B01299RefSaveAfterNPE')">
+		type on the textbox, then click update, the label should be updated
+		<vlayout text="@ref(vm.text)">
+		<textbox value="@save(text, after='periodSelected')"/>
+		<label value="@load(text)"/>
+		<button label="update" onClick="@command('periodSelected')" />
+		</vlayout>
+	</window>
+</zk>

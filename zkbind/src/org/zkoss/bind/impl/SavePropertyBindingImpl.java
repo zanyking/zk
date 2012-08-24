@@ -129,6 +129,7 @@ public class SavePropertyBindingImpl extends PropertyBindingImpl implements Save
 	}
 	
 	//get and cache value reference of this binding
+	// a binding may not has a valueRef...
 	private ValueReference getValueReference(BindContext ctx){
 		ValueReference ref = (ValueReference) getAttribute(ctx, $VALUEREF$);
 		if (ref == null) {
@@ -139,7 +140,8 @@ public class SavePropertyBindingImpl extends PropertyBindingImpl implements Save
 			} else {
 				final Component comp = getComponent();//ctx.getComponent();
 				final BindEvaluatorX eval = getBinder().getEvaluatorX();
-				ref = eval.getValueReference(ctx, comp, _accessInfo.getProperty());
+				ExpressionX prop = _accessInfo.getProperty();
+				ref = eval.getValueReference(ctx, comp, prop);
 			}
 			setAttribute(ctx, $VALUEREF$, ref);
 		}
