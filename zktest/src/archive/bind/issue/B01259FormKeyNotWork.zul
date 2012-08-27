@@ -1,0 +1,18 @@
+<!-- B01259FormKeyNotWork.zul -->
+<zk>
+	<window border="normal" title="hello"
+		apply="org.zkoss.bind.BindComposer"
+		viewModel="@id('vm') @init('org.zkoss.zktest.bind.issue.B01259FormKeyNotWork')"
+		form="@id('fx') @load(vm)">
+	<vlayout>
+		<!-- WORK -->
+		<label value="@load(fx.hash[vm.key])"/>
+
+		<!-- WORK TO -->
+		<label value="@load(vm.hash[vm.key])"/>
+
+		<!-- NOT WORK -->
+		<label value="@load(fx.hash[fx.key])"/> 
+	</vlayout>
+	</window>
+</zk>
